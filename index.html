@@ -87,6 +87,16 @@ canvas{width:100%;height:220px;display:block}
 textarea{font:inherit;color:var(--tx);background:#0b1222;border:1px solid #334155;border-radius:10px;padding:10px;width:100%;font-size:14px;min-height:70px}
 label.chk{display:flex;gap:10px;align-items:center;margin:10px 0;font-size:15px}
 label.chk input{width:22px;height:22px;flex:0 0 22px}
+
+.seg{display:flex;gap:6px;margin-bottom:10px;background:var(--card);padding:5px;border-radius:12px}
+.seg button{flex:1;background:transparent;border:0}
+.seg button.on{background:var(--ac);color:#04210f;font-weight:700}
+.mrow{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b}
+.mrow .ml{flex:1;min-width:0}.mrow .ml b{display:block;font-weight:600}.mrow .ml small{color:var(--mut);font-size:12px}
+.mrow input{width:96px;flex:0 0 96px;text-align:center}
+table.mt td,table.mt th{text-align:center;padding:5px 3px}table.mt td:first-child{text-align:left}
+.stat span.mut{display:block;font-size:12px}
+.item .n small{display:block;font-size:12px;white-space:normal}
 code{background:#0b1222;padding:1px 5px;border-radius:5px;font-size:13px}
 </style>
 </head>
@@ -102,7 +112,7 @@ code{background:#0b1222;padding:1px 5px;border-radius:5px;font-size:13px}
 <nav id="bottom">
 <button data-tab="diary" class="on"><span>🍽</span>Дневник</button>
 <button data-tab="act"><span>🔥</span>Активность</button>
-<button data-tab="weight"><span>⚖️</span>Вес</button>
+<button data-tab="weight"><span>⚖️</span>Тело</button>
 <button data-tab="prod"><span>📦</span>Продукты</button>
 <button data-tab="set"><span>⚙️</span>Ещё</button>
 </nav>
@@ -145,8 +155,10 @@ const DEF=[
  ['Чизбургер (Вкусно и точка)',257,13,10.5,27,'1 шт',117],
  ['Шаурма куриная',215,11,9,22,'1 шт',350],
  ['Капучино',45,2.8,2,4,'стакан',300]];
-const DEF_SET={startW:125.1,startD:'2026-10-15',goalW:82,prot:180,fatMin:75,ret:50,stepsBase:7000,activeBase:700,hWrite:0,hName:'Дневник',
+const DEF_SET={height:172,startW:125.1,startD:'2026-10-15',goalW:82,prot:180,fatMin:75,ret:50,stepsBase:7000,activeBase:700,hWrite:0,hName:'Дневник',
  stages:[[115,2600],[105,2400],[95,2200],[0,1950]]};
+const MP=[['waist','Талия','самое узкое место, обычно на 2–3 см выше пупка'],['belly','Живот','ровно по пупку, на спокойном выдохе'],['hips','Бёдра','по самым выступающим точкам ягодиц'],['chest','Грудь','по соскам, руки опущены'],['neck','Шея','сразу под кадыком'],['arm','Плечо','бицепс посередине, рука расслаблена'],['thigh','Бедро (нога)','сразу под ягодицей']];
+const START_M={d:'2026-07-19',m:{w:123.3,waist:118.5,belly:132,hips:113.5,chest:123,neck:38.5,src:'таблица'}};
 const ZX=['https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js','https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'];
 const XL=['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'];
 const FORMATS=['ean_13','ean_8','upc_a','upc_e','code_128'];
@@ -170,17 +182,21 @@ let tt;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on
 function mealOpts(sel){return MEALS.map((m,i)=>`<option value="${i}" ${i===sel?'selected':''}>${m}</option>`).join('')}
 
 /* ===== хранение ===== */
-let S, cur=today(), tab='diary';
+let S, cur=today(), tab='diary', wsub='w';
 function clone(o){return JSON.parse(JSON.stringify(o))}
 function fresh(){
- const s={v:1,set:clone(DEF_SET),products:{},log:{},weights:{},hsent:{},hpend:null};
+ const s={v:1,set:clone(DEF_SET),products:{},log:{},weights:{},meas:{},hsent:{},hpend:null};
  DEF.forEach(a=>{const id=uid();s.products[id]={id,name:a[0],kcal:a[1],p:a[2],f:a[3],c:a[4],pn:a[5],pg:a[6],bc:'',used:0}});
- s.weights[DEF_SET.startD]={w:DEF_SET.startW,waist:null};
+ s.weights[DEF_SET.startD]={w:DEF_SET.startW};
+ s.meas[START_M.d]=clone(START_M.m);s.mseed=1;
  return s;
 }
 function load(){
  try{const s=JSON.parse(localStorage.getItem(KEY));
-  if(s&&s.v){s.set=Object.assign(clone(DEF_SET),s.set||{});s.products=s.products||{};s.log=s.log||{};s.weights=s.weights||{};s.hsent=s.hsent||{};s.hpend=s.hpend||null;return s}
+  if(s&&s.v){s.set=Object.assign(clone(DEF_SET),s.set||{});s.products=s.products||{};s.log=s.log||{};s.weights=s.weights||{};s.meas=s.meas||{};s.hsent=s.hsent||{};s.hpend=s.hpend||null;
+   for(const k in s.weights){const e=s.weights[k];if(e&&e.waist){s.meas[k]=Object.assign({waist:e.waist},s.meas[k]||{})}if(e&&'waist' in e)delete e.waist}
+   if(!s.mseed){if(!s.meas[START_M.d])s.meas[START_M.d]=clone(START_M.m);s.mseed=1}
+   return s}
  }catch(e){}
  return fresh();
 }
@@ -483,7 +499,7 @@ function applyHealth(txt){
  const d=today(),x=Dw(d);const msg=[];
  if(steps!=null){x.steps=r0(steps);msg.push('шаги '+r0(steps))}
  if(act!=null&&act>0){x.watch={kcal:r0(act),steps:x.steps||0,src:'health',t:Date.now()};msg.unshift('активные '+r0(act)+' ккал')}
- if(w&&w>40&&w<250&&!(S.weights[d]&&S.weights[d].w)){S.weights[d]={w:r1(w),waist:null};msg.push('вес '+r1(w))}
+ if(w&&w>40&&w<250&&!(S.weights[d]&&S.weights[d].w)){S.weights[d]={w:r1(w)};msg.push('вес '+r1(w))}
  const pd=S.hpend;
  if(pd&&pd.id===id){if(pd.k||pd.p||pd.f||pd.c){const hs=S.hsent[pd.d]||{k:0,p:0,f:0,c:0};['k','p','f','c'].forEach(q=>hs[q]=(hs[q]||0)+pd[q]);S.hsent[pd.d]=hs;msg.push('еда +'+pd.k+' ккал ушла в Здоровье')}S.hpend=null}
  $('#hbar').hidden=true;save();render();toast(msg.length?'Из Здоровья: '+msg.join(', '):'Данные пустые — проверь быструю команду');return true;
@@ -504,7 +520,7 @@ let SY=(()=>{try{return Object.assign({on:0,url:'',key:'',space:'',seq:0,joined:
 function saveSY(){try{localStorage.setItem(SKEY,JSON.stringify(SY))}catch(e){}}
 function cj(o){if(o===null||typeof o!=='object')return JSON.stringify(o);if(Array.isArray(o))return '['+o.map(cj).join(',')+']';return '{'+Object.keys(o).filter(k=>o[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+cj(o[k])).join(',')+'}'}
 function hs(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)+'.'+str.length}
-function syncDocs(){const o={set:S.set};for(const k in S.products)o['p:'+k]=S.products[k];for(const k in S.log)o['d:'+k]=S.log[k];for(const k in S.weights)if(S.weights[k])o['w:'+k]=S.weights[k];return o}
+function syncDocs(){const o={set:S.set};for(const k in S.products)o['p:'+k]=S.products[k];for(const k in S.log)o['d:'+k]=S.log[k];for(const k in S.weights)if(S.weights[k])o['w:'+k]=S.weights[k];for(const k in S.meas)if(S.meas[k])o['m:'+k]=S.meas[k];return o}
 function track(){
  if(!SY.on||!SY.joined)return 0;const docs=syncDocs(),now=Date.now();let ch=0;
  for(const k in docs){const h=hs(cj(docs[k])),m=SY.meta[k];if(!m||m.h!==h){SY.meta[k]={h,t:Math.max(now,m?m.t+1:0),d:1};ch++}}
@@ -513,7 +529,7 @@ function track(){
 }
 function setDoc(k,v){
  if(k==='set'){if(v&&typeof v==='object')S.set=v;return}
- const i=k.indexOf(':'),t=k.slice(0,i),id=k.slice(i+1),box=t==='p'?S.products:t==='d'?S.log:t==='w'?S.weights:null;if(!box)return;
+ const i=k.indexOf(':'),t=k.slice(0,i),id=k.slice(i+1),box=t==='p'?S.products:t==='d'?S.log:t==='w'?S.weights:t==='m'?S.meas:null;if(!box)return;
  if(v==null)delete box[id];else box[id]=v;
 }
 async function rpc(fn,body){
@@ -565,7 +581,7 @@ async function syncJoin(str){
  if(!confirm('Данные на ЭТОМ телефоне заменятся данными из облака (копия текущих сохранится). Продолжить?'))return;
  try{localStorage.setItem(KEY+'_before_sync',JSON.stringify(S))}catch(e){}
  const keep={hsent:S.hsent,hpend:S.hpend};
- S={v:1,set:clone(DEF_SET),products:{},log:{},weights:{},hsent:keep.hsent||{},hpend:keep.hpend||null};saveRaw();
+ S={v:1,set:clone(DEF_SET),products:{},log:{},weights:{},meas:{},mseed:1,hsent:keep.hsent||{},hpend:keep.hpend||null};saveRaw();
  SY={on:1,url:f[1],key:f[2],space:f[3],seq:0,joined:0,last:0,err:'',meta:{}};saveSY();render();
  await syncNow(true);
  if(!SY.joined)toast('Не получилось подключиться: '+SY.err+'. Данные подтянутся при следующей синхронизации.');
@@ -573,28 +589,103 @@ async function syncJoin(str){
 function syncOff(){if(!confirm('Отключить синхронизацию на этом телефоне? Данные останутся в телефоне и в облаке.'))return;SY.on=0;saveSY();render()}
 
 /* ===== ВЕС ===== */
-function wList(){return Object.keys(S.weights).filter(k=>S.weights[k]&&S.weights[k].w).sort().map(k=>({d:k,w:S.weights[k].w,waist:S.weights[k].waist}))}
+function wList(){return Object.keys(S.weights).filter(k=>S.weights[k]&&S.weights[k].w).sort().map(k=>({d:k,w:S.weights[k].w}))}
 function avg7(L,d){const a=L.filter(x=>x.d<=d&&x.d>addDays(d,-7));return a.length?a.reduce((s,x)=>s+x.w,0)/a.length:null}
 function trend(L){const last=L.filter(x=>x.d>=addDays(today(),-28));if(last.length<4)return null;
  const t0=dObj(last[0].d)/864e5;let n=last.length,sx=0,sy=0,sxx=0,sxy=0;
  last.forEach(p=>{const x=dObj(p.d)/864e5-t0;sx+=x;sy+=p.w;sxx+=x*x;sxy+=x*p.w});
  const den=n*sxx-sx*sx;if(!den)return null;if(dObj(last[last.length-1].d)/864e5-t0<10)return null;return (n*sxy-sx*sy)/den*7}
 function renderWeight(){
+ const seg=`<div class="seg"><button data-ws="w" class="${wsub==='w'?'on':''}">⚖️ Вес</button><button data-ws="m" class="${wsub==='m'?'on':''}">📏 Замеры тела</button></div>`;
+ if(wsub==='m')renderMeas(seg);else renderW(seg);
+ $('#tab-weight').querySelectorAll('[data-ws]').forEach(b=>b.onclick=()=>{wsub=b.dataset.ws;renderWeight();window.scrollTo(0,0)});
+}
+function renderW(seg){
  const L=wList(),e=S.weights[cur]||{},curW=L.length?L[L.length-1].w:S.set.startW,a7=avg7(L,today())||curW,tr=trend(L);
  let eta='';if(tr!=null&&tr<-0.05){const d=new Date();d.setDate(d.getDate()+(a7-S.set.goalW)/-tr*7);eta=d.toLocaleDateString('ru-RU',{month:'long',year:'numeric'})}
- $('#tab-weight').innerHTML=`<div class="card"><h2>⚖️ Вес на ${esc(fmtDate(cur))}</h2>
- <div class="row"><div><label class="f">Вес утром, кг</label><input id="wv" type="number" inputmode="decimal" step="0.1" value="${e.w??''}"></div><div><label class="f">Талия, см</label><input id="ww" type="number" inputmode="decimal" value="${e.waist??''}" placeholder="раз в неделю"></div></div>
+ const im=a7/Math.pow(S.set.height/100,2);
+ $('#tab-weight').innerHTML=seg+`<div class="card"><h2>⚖️ Вес на ${esc(fmtDate(cur))}</h2>
+ <label class="f">Вес утром, кг</label><input id="wv" type="number" inputmode="decimal" step="0.1" value="${e.w??''}">
  <button class="pri" id="bW" style="width:100%;margin-top:10px">Сохранить</button>
  <p class="mut">Утром, после туалета, до еды. Смотри на среднее за неделю, а не на одну цифру.</p></div>
  <div class="card"><div class="stat">
  <div><span class="mut">Старт</span><b>${S.set.startW}</b></div><div><span class="mut">Среднее 7 дней</span><b>${r1(a7)}</b></div>
  <div><span class="mut">Сброшено</span><b class="ok">${r1(S.set.startW-a7)}</b></div><div><span class="mut">До цели ${S.set.goalW}</span><b>${r1(a7-S.set.goalW)}</b></div>
- <div><span class="mut">Темп, кг/нед</span><b>${tr!=null?(tr>0?'+':'')+r1(tr):'—'}</b></div><div><span class="mut">Цель примерно</span><b style="font-size:15px">${eta||'нужно 2+ недели замеров'}</b></div></div></div>
- <div class="card"><h2>График</h2><canvas id="cv"></canvas><div class="mut">Точки — замеры, зелёная линия — среднее за 7 дней</div></div>
- <div class="card"><h2>Замеры</h2>${L.slice().reverse().slice(0,60).map(x=>`<div class="item"><div class="n">${esc(fmtDate(x.d))}</div><div class="k">${x.w} кг${x.waist?' · '+x.waist+' см':''} <button class="ghost x" data-delw="${x.d}">✕</button></div></div>`).join('')||'<div class="mut">Пусто</div>'}</div>`;
- $('#bW').onclick=()=>{const w=num($('#wv').value),ws=num($('#ww').value);if(!w)return toast('Впиши вес');if(w<40||w>250)return toast('Проверь вес');S.weights[cur]={w,waist:ws||null};save();render();toast('Сохранено')};
- $('#tab-weight').querySelectorAll('[data-delw]').forEach(b=>b.onclick=()=>{if(confirm('Удалить замер?')){delete S.weights[b.dataset.delw];save();render()}});
+ <div><span class="mut">Темп, кг/нед</span><b>${tr!=null?(tr>0?'+':'')+r1(tr):'—'}</b></div><div><span class="mut">Цель примерно</span><b style="font-size:15px">${eta||'нужно 2+ недели замеров'}</b></div>
+ <div><span class="mut">ИМТ</span><b>${r1(im)}</b></div><div><span class="mut">Замеры тела</span><b style="font-size:15px">${measHint()}</b></div></div></div>
+ <div class="card"><h2>График</h2><canvas id="cv"></canvas><div class="mut">Точки — взвешивания, зелёная линия — среднее за 7 дней</div></div>
+ <div class="card"><h2>Взвешивания</h2>${L.slice().reverse().slice(0,60).map(x=>`<div class="item"><div class="n">${esc(fmtDate(x.d))}</div><div class="k">${x.w} кг <button class="ghost x" data-delw="${x.d}">✕</button></div></div>`).join('')||'<div class="mut">Пусто</div>'}</div>`;
+ $('#bW').onclick=()=>{const w=num($('#wv').value);if(!w)return toast('Впиши вес');if(w<40||w>250)return toast('Проверь вес');S.weights[cur]=Object.assign({},S.weights[cur]||{},{w});save();render();toast('Сохранено')};
+ $('#tab-weight').querySelectorAll('[data-delw]').forEach(b=>b.onclick=()=>{if(confirm('Удалить взвешивание?')){delete S.weights[b.dataset.delw];save();render()}});
  drawChart(L);
+}
+
+/* ===== ЗАМЕРЫ ТЕЛА ===== */
+function mList(){return Object.keys(S.meas).filter(k=>S.meas[k]&&MP.some(q=>S.meas[k][q[0]])).sort().map(k=>Object.assign({d:k},S.meas[k]))}
+function mW(x){return x.w||wOn(x.d)}
+function fatPct(x){const ab=x.belly||x.waist,nk=x.neck,h=S.set.height;if(!ab||!nk||!h||ab<=nk)return null;
+ const v=495/(1.0324-0.19077*Math.log10(ab-nk)+0.15456*Math.log10(h))-450;return v>3&&v<70?v:null}
+function lastVal(L,k,beforeD){for(let i=L.length-1;i>=0;i--){if(beforeD&&L[i].d>=beforeD)continue;if(L[i][k])return L[i]}return null}
+function firstVal(L,k){for(const x of L)if(x[k])return x;return null}
+function measHint(){const L=mList();if(!L.length)return 'ещё нет';const d=L[L.length-1].d,n=Math.round((dObj(today())-dObj(d))/864e5);
+ return n>=14?`⏰ ${n} дн. назад — пора`:n===0?'сегодня':n+' дн. назад'}
+const sg=v=>v==null?'—':(v>0?'+':v<0?'−':'')+r1(Math.abs(v));
+function renderMeas(seg){
+ const L=mList(),e=S.meas[cur]||{},last=L.length?L[L.length-1]:null,first=L.length?L[0]:null;
+ const fields=MP.map(([k,n,h])=>{const lv=lastVal(L,k);return `<div class="mrow"><div class="ml"><b>${n}</b><small>${h}</small></div><input data-m="${k}" type="number" inputmode="decimal" step="0.5" value="${e[k]??''}" placeholder="${lv?lv[k]:'см'}"></div>`}).join('');
+ // таблица сравнения
+ let rows='';
+ MP.forEach(([k,n])=>{const f=firstVal(L,k),l=lastVal(L,k);if(!l)return;const pv=lastVal(L,k,l.d);
+  const tot=f&&f!==l?l[k]-f[k]:null,lastCh=pv?l[k]-pv[k]:null;
+  rows+=`<tr><td>${n}</td><td>${f?f[k]:'—'}</td><td>${l[k]}</td><td class="${lastCh<0?'ok':lastCh>0?'badc':''}">${sg(lastCh)}</td><td class="${tot<0?'ok':tot>0?'badc':''}"><b>${sg(tot)}</b></td></tr>`});
+ const F=L.map(x=>({d:x.d,v:fatPct(x),w:mW(x)})).filter(x=>x.v!=null);
+ const f0=F[0],f1=F[F.length-1];
+ let fatHtml='';
+ if(f1){const fm=f1.w*f1.v/100,lm=f1.w-fm;
+  fatHtml=`<div class="stat" style="margin-top:10px">
+  <div><span class="mut">% жира</span><b>${r1(f1.v)}%</b>${f0&&f0!==f1?`<span class="mut">старт ${r1(f0.v)}%</span>`:''}</div>
+  <div><span class="mut">Жир, кг</span><b>${r1(fm)}</b>${f0&&f0!==f1?`<span class="mut">${sg(fm-f0.w*f0.v/100)} кг</span>`:''}</div>
+  <div><span class="mut">Без жира (мышцы, кости, вода)</span><b>${r1(lm)}</b>${f0&&f0!==f1?`<span class="mut">${sg(lm-(f0.w-f0.w*f0.v/100))} кг</span>`:''}</div>
+  <div><span class="mut">Талия / рост</span><b>${(()=>{const l=lastVal(L,'waist');return l?(l.waist/S.set.height).toFixed(2):'—'})()}</b><span class="mut">цель меньше 0,50</span></div></div>
+  <div class="mut" style="margin-top:6px">% жира — по формуле ВМС США (живот, шея, рост ${S.set.height} см). Точность ±3–4%, важна динамика, а не сама цифра. Если масса «без жира» почти не падает — мышцы сохраняются, силовые работают.</div>`}
+ // подсказка «вес стоит, а талия уходит»
+ let note='';const lw=lastVal(L,'waist'),pw=lw?lastVal(L,'waist',lw.d):null;
+ if(lw&&pw){const dw=lw.waist-pw.waist,dkg=wOn(lw.d)-wOn(pw.d);
+  if(dw<=-1&&dkg>-0.5)note=`<div class="calc">💪 Вес почти не двигался (${sg(dkg)} кг), а талия −${r1(-dw)} см. Это тоже результат — жир уходит, мышцы остаются.</div>`;
+  else if(dw<0)note=`<div class="calc">👍 С прошлого замера талия ${sg(dw)} см.</div>`}
+ $('#tab-weight').innerHTML=seg+`<div class="card"><h2>📏 Замеры на ${esc(fmtDate(cur))}</h2>
+ <div class="mut" style="margin-bottom:8px">Раз в 2 недели, утром натощак, мягкой лентой, не затягивая. Заполняй что успел — пустые поля можно пропустить. Серым — прошлый замер.</div>
+ ${fields}
+ <button class="pri" id="bM" style="width:100%;margin-top:12px">Сохранить замер</button>
+ ${S.meas[cur]?'<button class="ghost" id="bMdel" style="width:100%;margin-top:6px">Удалить замер за этот день</button>':''}
+ <div class="mut" style="margin-top:6px">Дата меняется стрелками ‹ › вверху — так можно внести старые замеры.</div></div>
+ ${L.length?`<div class="card"><h2>Как меняется тело</h2>${note}
+ <table class="mt"><tr><th></th><th>Старт</th><th>Сейчас</th><th>С прошл.</th><th>Всего</th></tr>${rows}</table>
+ <div class="mut" style="margin-top:4px">Старт — ${esc(fmtDate(first.d))}${first.src?' (из таблицы)':''}, последний — ${esc(fmtDate(last.d))}. Всё в сантиметрах.</div>
+ ${fatHtml}</div>
+ <div class="card"><h2>График, см</h2><canvas id="cvm"></canvas><div class="mut"><span style="color:#22c55e">●</span> талия <span style="color:#f59e0b">●</span> живот <span style="color:#60a5fa">●</span> бёдра <span style="color:#c084fc">●</span> грудь</div></div>
+ <div class="card"><h2>Все замеры</h2>${L.slice().reverse().map(x=>`<div class="item"><div class="n"><b>${esc(fmtDate(x.d))}</b><small class="mut">${MP.filter(q=>x[q[0]]).map(q=>q[1].split(' ')[0]+' '+x[q[0]]).join(' · ')}${fatPct(x)!=null?' · жир '+r1(fatPct(x))+'%':''}</small></div><div class="k"><button class="ghost x" data-gom="${x.d}">✎</button></div></div>`).join('')}</div>`:''}`;
+ $('#bM').onclick=()=>{const o={};let n=0,bad='';
+  document.querySelectorAll('[data-m]').forEach(i=>{const v=num(i.value);if(v){if(v<15||v>250)bad=i.closest('.mrow').querySelector('b').textContent;o[i.dataset.m]=r1(v);n++}});
+  if(!n)return toast('Впиши хотя бы один замер');if(bad)return toast('Проверь: '+bad+' (в сантиметрах)');
+  const old=S.meas[cur]||{};if(old.w)o.w=old.w;S.meas[cur]=o;save();render();toast('Замер сохранён')};
+ const bd=$('#bMdel');if(bd)bd.onclick=()=>{if(confirm('Удалить замер за '+fmtDate(cur)+'?')){delete S.meas[cur];save();render()}};
+ $('#tab-weight').querySelectorAll('[data-gom]').forEach(b=>b.onclick=()=>{cur=b.dataset.gom;render();window.scrollTo(0,0)});
+ if(L.length)drawLines($('#cvm'),[['waist','#22c55e'],['belly','#f59e0b'],['hips','#60a5fa'],['chest','#c084fc']].map(([k,c])=>({c,pts:L.filter(x=>x[k]).map(x=>({d:x.d,v:x[k]}))})).filter(s=>s.pts.length));
+}
+function drawLines(c,SR){
+ if(!c)return;const dpr=window.devicePixelRatio||1,W=c.clientWidth||320,H=220;c.width=W*dpr;c.height=H*dpr;
+ const g=c.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,W,H);g.font='11px sans-serif';
+ const all=[].concat(...SR.map(s=>s.pts));const ds=[...new Set(all.map(p=>p.d))].sort();
+ if(ds.length<2){g.fillStyle='#94a3b8';g.font='14px sans-serif';g.fillText('График появится после второго замера',12,30);return}
+ const t=s=>dObj(s)/864e5,t0=t(ds[0]),t1=Math.max(t(ds[ds.length-1]),t0+1);
+ const vs=all.map(p=>p.v);let mn=Math.floor(Math.min(...vs)-2),mx=Math.ceil(Math.max(...vs)+2);
+ const pl=34,pr=8,pt=10,pb=22,X=d=>pl+(t(d)-t0)/(t1-t0)*(W-pl-pr),Y=v=>pt+(mx-v)/(mx-mn)*(H-pt-pb);
+ g.strokeStyle='#273449';g.fillStyle='#94a3b8';g.lineWidth=1;
+ const step=Math.max(1,Math.round((mx-mn)/5));for(let v=mn;v<=mx;v+=step){g.beginPath();g.moveTo(pl,Y(v));g.lineTo(W-pr,Y(v));g.stroke();g.fillText(v,4,Y(v)+4)}
+ g.fillText(fmtShort(ds[0]),pl,H-6);const le=fmtShort(ds[ds.length-1]);g.fillText(le,W-pr-g.measureText(le).width,H-6);
+ SR.forEach(s=>{g.strokeStyle=s.c;g.fillStyle=s.c;g.lineWidth=2.5;g.beginPath();s.pts.forEach((p,i)=>{if(i)g.lineTo(X(p.d),Y(p.v));else g.moveTo(X(p.d),Y(p.v))});g.stroke();
+  s.pts.forEach(p=>{g.beginPath();g.arc(X(p.d),Y(p.v),3,0,7);g.fill()})});
 }
 function drawChart(L){
  const c=$('#cv');if(!c)return;const dpr=window.devicePixelRatio||1,W=c.clientWidth||320,H=220;c.width=W*dpr;c.height=H*dpr;
@@ -628,7 +719,7 @@ function renderSet(){
  <div class="row"><div><label class="f">Стартовый вес</label><input data-s="startW" type="number" inputmode="decimal" value="${s.startW}"></div><div><label class="f">Цель, кг</label><input data-s="goalW" type="number" inputmode="decimal" value="${s.goalW}"></div></div>
  <div class="row"><div><label class="f">Белок, г/день</label><input data-s="prot" type="number" value="${s.prot}"></div><div><label class="f">Жиры минимум, г</label><input data-s="fatMin" type="number" value="${s.fatMin}"></div></div>
  <div class="row"><div><label class="f">% активности в еду</label><input data-s="ret" type="number" value="${s.ret}"></div><div><label class="f">Шаги, уже в норме</label><input data-s="stepsBase" type="number" value="${s.stepsBase}"></div></div>
- <div class="row"><div><label class="f">Активные ккал часов, уже в норме</label><input data-s="activeBase" type="number" value="${s.activeBase}"></div><div></div></div>
+ <div class="row"><div><label class="f">Активные ккал часов, уже в норме</label><input data-s="activeBase" type="number" value="${s.activeBase}"></div><div><label class="f">Рост, см (для % жира)</label><input data-s="height" type="number" value="${s.height}"></div></div>
  <h2 style="margin-top:16px">Этапы нормы по весу</h2><div class="mut">Если вес от … кг — норма … ккал</div>
  ${s.stages.map((st,i)=>`<div class="row"><div><label class="f">Вес от, кг</label><input data-st="${i}" data-k="0" type="number" value="${st[0]}"></div><div><label class="f">Ккал</label><input data-st="${i}" data-k="1" type="number" value="${st[1]}"></div></div>`).join('')}
  <button class="pri" id="bSet" style="width:100%;margin-top:12px">Сохранить настройки</button></div>
@@ -690,7 +781,9 @@ async function exportXlsx(){
   const s=tot(fd),t=target(d),b=burn(d);
   dd.push([d,r0(s.k),t.k,t.base,b.bonus,r0(s.p),r0(s.f),r0(s.c),x.steps||'',(x.watch&&x.watch.kcal)||'',(S.weights[d]&&S.weights[d].w)||'']);
   (x.act||[]).forEach(a=>act.push([d,a.type,a.min||'',r0(a.kcal),a.src==='watch'?'часы':'расчёт']))});
- const wt=[['Дата','Вес, кг','Талия, см']];Object.keys(S.weights).sort().forEach(d=>wt.push([d,S.weights[d].w||'',S.weights[d].waist||'']));
+ const wt=[['Дата','Вес, кг']];Object.keys(S.weights).sort().forEach(d=>wt.push([d,S.weights[d].w||'']));
+ const ms=[['Дата','Вес, кг'].concat(MP.map(q=>q[1]+', см'),['% жира','Жир, кг','Без жира, кг','Талия/рост'])];
+ mList().forEach(x=>{const f=fatPct(x),w=mW(x);ms.push([x.d,r1(w)].concat(MP.map(q=>x[q[0]]||''),[f!=null?r1(f):'',f!=null?r1(w*f/100):'',f!=null?r1(w-w*f/100):'',x.waist?+(x.waist/S.set.height).toFixed(2):'']))});
  const pr=[['Название','Штрихкод','Ккал','Белки','Жиры','Углеводы','Порция','Порция, г']];
  Object.values(S.products).sort((a,b)=>a.name.localeCompare(b.name,'ru')).forEach(p=>pr.push([p.name,p.bc||'',p.kcal,p.p,p.f,p.c,p.pn||'',p.pg||'']));
  try{
@@ -702,7 +795,7 @@ async function exportXlsx(){
    for(let i=1;i<rr.length;i++){const a=XLSX.utils.encode_cell({r:i,c:0});if(ws[a]&&typeof ws[a].v==='number'&&isD(rows[i][0]))ws[a].z='dd.mm.yyyy'}
    ws['!cols']=cols.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name)};
   add(food,'Питание',[11,11,34,8,7,7,7,9]);add(dd,'Дни',[11,12,8,8,13,8,8,9,8,12,8]);add(act,'Активность',[11,30,8,15,10]);
-  add(wt,'Вес',[11,9,10]);add(pr,'Продукты',[36,15,7,7,7,9,12,9]);
+  add(wt,'Вес',[11,9]);add(ms,'Замеры',[11,8,8,8,8,8,8,8,12,8,8,12,10]);add(pr,'Продукты',[36,15,7,7,7,9,12,9]);
   const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});
   await downloadBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Дневник питания '+today()+'.xlsx');
  }catch(e){
